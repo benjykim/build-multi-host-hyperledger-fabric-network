@@ -134,6 +134,18 @@ services:
             - /sys:/sys:ro
             - /var/lib/docker/:/var/lib/docker:ro
 
+    prom-metrics-collector:
+        image: prom-metrics-collector:latest
+        container_name: prom-metrics-collector
+        ports:
+            - 5001:5001
+        volumes:
+            - /:/rootfs:ro
+            - /var/run:/var/run:rw
+            - /sys:/sys:ro
+            - /var/lib/docker/:/var/lib/docker:ro
+        networks:
+            - fabric
     cli:
         container_name: cli
         image: hyperledger/fabric-tools
