@@ -16,7 +16,10 @@ services:
             - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
             - FABRIC_CA_SERVER_CA_NAME=ca.org2.example.com
             - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org2.example.com-cert.pem
-            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/2fd4c27a682ea48616717701ef7bf7e307f53aca2ad804779f1fd83230a461f3_sk
+            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/337bf389d3729a4f7a4ed89df8374630b98c537c83db268a16e5b7c13cd62676_sk
+            - FABRIC_CA_SERVER_TLS_ENABLED=true
+            - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org2.example.com-cert.pem
+            - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/337bf389d3729a4f7a4ed89df8374630b98c537c83db268a16e5b7c13cd62676_sk
         ports:
             - "7054:7054"
         command: sh -c 'fabric-ca-server start -b admin:adminpw'
@@ -31,16 +34,19 @@ services:
             file: nodebase.yaml
             service: peer
         environment:
-            - CORE_LOGGING_GRPC=debug
+            - CORE_LOGGING_GRPC=DEBUG
             - CORE_PEER_ID=peer0.org2.example.com
             - CORE_PEER_ADDRESS=peer0.org2.example.com:7051
-            - CORE_PEER_CHAINCODELISTENADDRESS=peer0.org2.example.com:7052
+            - CORE_PEER_CHAINCODEADDRESS=peer0.org2.example.com:7052
             - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org2.example.com:7051
+            - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.org2.example.com:7051
             - CORE_PEER_LOCALMSPID=Org2MSP
         extra_hosts:
             - "orderer.example.com:${NODE1}"
             - "peer0.org1.example.com:${NODE1}"
             - "peer1.org1.example.com:${NODE1}"
+            - "peer0.org2.example.com:${NODE2}"
+            - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
             - "peer1.org3.example.com:${NODE3}"
         volumes:
@@ -50,28 +56,29 @@ services:
             - peer0.org2.example.com:/var/hyperledger/production
         ports:
             - 7051:7051
-            - 7053:7053
         mem_limit: '1G'
         networks:
             - fabric
-            
+
     peer1.org2.example.com:
         container_name: peer1.org2.example.com
         extends:
             file: nodebase.yaml
             service: peer
         environment:
-            - CORE_LOGGING_GRPC=debug
+            - CORE_LOGGING_GRPC=DEBUG
             - CORE_PEER_ID=peer1.org2.example.com
-            - CORE_PEER_ADDRESS=peer1.org2.example.com:8051
-            - CORE_PEER_CHAINCODELISTENADDRESS=peer1.org2.example.com:8052
+            - CORE_PEER_ADDRESS=peer1.org2.example.com:7051
+            - CORE_PEER_CHAINCODEADDRESS=peer1.org2.example.com:7052
             - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org2.example.com:7051
-            - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.org2.example.com:8051
+            - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.org2.example.com:7051
             - CORE_PEER_LOCALMSPID=Org2MSP
         extra_hosts:
             - "orderer.example.com:${NODE1}"
             - "peer0.org1.example.com:${NODE1}"
             - "peer1.org1.example.com:${NODE1}"
+            - "peer0.org2.example.com:${NODE2}"
+            - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
             - "peer1.org3.example.com:${NODE3}"
         volumes:
@@ -80,8 +87,7 @@ services:
             - ./crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/tls:/etc/hyperledger/fabric/tls
             - peer1.org2.example.com:/var/hyperledger/production
         ports:
-            - 8051:8051
-            - 8053:8053
+            - 8051:7051
         mem_limit: '1G'
         networks:
             - fabric
@@ -95,11 +101,11 @@ services:
             - GOPATH=/opt/gopath
             - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
             #- FABRIC_LOGGING_SPEC=DEBUG
-            - FABRIC_LOGGING_SPEC=INFO
+            - FABRIC_LOGGING_SPEC=DEBUG
             - CORE_PEER_ID=cli
             - CORE_PEER_ADDRESS=peer0.org2.example.com:7051
             - CORE_PEER_LOCALMSPID=Org2MSP
-            - CORE_PEER_TLS_ENABLED=false
+            - CORE_PEER_TLS_ENABLED=true
             - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/server.crt
             - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/server.key
             - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org2.example.com/peers/peer0.org2.example.com/tls/ca.crt
@@ -108,6 +114,7 @@ services:
             - "orderer.example.com:${NODE1}"
             - "peer0.org1.example.com:${NODE1}"
             - "peer1.org1.example.com:${NODE1}"
+            - "peer0.org2.example.com:${NODE2}"
             - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
             - "peer1.org3.example.com:${NODE3}"

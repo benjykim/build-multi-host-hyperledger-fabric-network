@@ -17,7 +17,10 @@ services:
             - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
             - FABRIC_CA_SERVER_CA_NAME=ca.org1.example.com
             - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem
-            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/dc3f94f70c00f78eea5f854cf50dcfd4c8928280446a9f501bc2c1ef632b8271_sk
+            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/ba8d039f6153c6db0b34a4352d43a4f0c126e17f1f08be0dccd99fdf2632f70e_sk
+            - FABRIC_CA_SERVER_TLS_ENABLED=true
+            - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org1.example.com-cert.pem
+            - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/ba8d039f6153c6db0b34a4352d43a4f0c126e17f1f08be0dccd99fdf2632f70e_sk      
         ports:
             - "7054:7054"
         command: sh -c 'fabric-ca-server start -b admin:adminpw'
@@ -32,11 +35,15 @@ services:
             service: orderer
         container_name: orderer.example.com
         environment:
-            - ORERDER_LOGGING_GRPC=debug
+            - ORERDER_LOGGING_GRPC=DEBUG
             - ORDERER_HOST=orderer.example.com
             - ORDERER_ABSOLUTEMAXBYTES=10 MB
-            - ORDERER_PREFERREDMAXBYTES=512 KB            
+            - ORDERER_PREFERREDMAXBYTES=512 KB      
+            - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
         extra_hosts:
+            - "orderer.example.com:${NODE1}"
+            - "peer0.org1.example.com:${NODE1}"
+            - "peer1.org1.example.com:${NODE1}"
             - "peer0.org2.example.com:${NODE2}"
             - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
@@ -47,6 +54,8 @@ services:
             - ./channel-artifacts/:/var/hyperledger/configs
         networks:
             - fabric
+        depends_on:
+            - ca.org1.example.com
         ports:
           - 7050:7050
 
@@ -56,13 +65,15 @@ services:
             file: nodebase.yaml
             service: peer
         environment:
-            - CORE_LOGGING_GRPC=debug
+            - CORE_LOGGING_GRPC=DEBUG
             - CORE_PEER_ID=peer0.org1.example.com
             - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
-            - CORE_PEER_CHAINCODELISTENADDRESS=peer0.org1.example.com:7052
+            - CORE_PEER_CHAINCODEADDRESS=peer0.org1.example.com:7052
             - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.org1.example.com:7051
+            - CORE_PEER_GOSSIP_BOOTSTRAP=peer1.org1.example.com:7051
             - CORE_PEER_LOCALMSPID=Org1MSP
         extra_hosts:
+            - "orderer.example.com:${NODE1}"
             - "peer0.org2.example.com:${NODE2}"
             - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
@@ -74,7 +85,6 @@ services:
             - peer0.org1.example.com:/var/hyperledger/production
         ports:
             - 7051:7051
-            - 7053:7053
         mem_limit: '1G'
         networks:
             - fabric
@@ -85,14 +95,15 @@ services:
             file: nodebase.yaml
             service: peer
         environment:
-            - CORE_LOGGING_GRPC=debug
+            - CORE_LOGGING_GRPC=DEBUG
             - CORE_PEER_ID=peer1.org1.example.com
-            - CORE_PEER_ADDRESS=peer1.org1.example.com:8051
-            - CORE_PEER_CHAINCODELISTENADDRESS=peer1.org1.example.com:8052
+            - CORE_PEER_ADDRESS=peer1.org1.example.com:7051
+            - CORE_PEER_CHAINCODEADDRESS=peer1.org1.example.com:7052
+            - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.org1.example.com:7051
             - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.org1.example.com:7051
-            - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.org1.example.com:8051
             - CORE_PEER_LOCALMSPID=Org1MSP
         extra_hosts:
+            - "orderer.example.com:${NODE1}"
             - "peer0.org2.example.com:${NODE2}"
             - "peer1.org2.example.com:${NODE2}"
             - "peer0.org3.example.com:${NODE3}"
@@ -103,8 +114,7 @@ services:
             - ./crypto-config/peerOrganizations/org1.example.com/peers/peer1.org1.example.com/tls:/etc/hyperledger/fabric/tls
             - peer1.org1.example.com:/var/hyperledger/production
         ports:
-            - 8051:8051
-            - 8053:8053
+            - 8051:7051
         mem_limit: '1G'
         networks:
             - fabric
@@ -134,18 +144,6 @@ services:
             - /sys:/sys:ro
             - /var/lib/docker/:/var/lib/docker:ro
 
-    prom-metrics-collector:
-        image: prom-metrics-collector:latest
-        container_name: prom-metrics-collector
-        ports:
-            - 5001:5001
-        volumes:
-            - /:/rootfs:ro
-            - /var/run:/var/run:rw
-            - /sys:/sys:ro
-            - /var/lib/docker/:/var/lib/docker:ro
-        networks:
-            - fabric
     cli:
         container_name: cli
         image: hyperledger/fabric-tools
@@ -155,16 +153,18 @@ services:
             - GOPATH=/opt/gopath
             - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
             #- FABRIC_LOGGING_SPEC=DEBUG
-            - FABRIC_LOGGING_SPEC=INFO
+            - FABRIC_LOGGING_SPEC=DEBUG
             - CORE_PEER_ID=cli
             - CORE_PEER_ADDRESS=peer0.org1.example.com:7051
             - CORE_PEER_LOCALMSPID=Org1MSP
-            - CORE_PEER_TLS_ENABLED=false
+            - CORE_PEER_TLS_ENABLED=true
             - CORE_PEER_TLS_CERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.crt
             - CORE_PEER_TLS_KEY_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.key
             - CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
             - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
         extra_hosts:
+            - "orderer.example.com:${NODE1}"
+            - "peer0.org1.example.com:${NODE1}"
             - "peer1.org1.example.com:${NODE1}"
             - "peer0.org2.example.com:${NODE2}"
             - "peer1.org2.example.com:${NODE2}"
